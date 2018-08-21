@@ -23,20 +23,6 @@ const deploy = (serverless, options) => {
           GlobalTableName: uow.tableName
         })
           .then(data => ({ ...uow, ...data }))
-          .catch((e) => {
-            serverless.cli.log(e.message);
-            return serverless.getProvider('aws').request('DynamoDB', 'createGlobalTable', {
-              GlobalTableName: uow.tableName,
-              ReplicationGroup: [
-                {
-                  RegionName: options.region
-                }
-              ]
-            })
-              .then(data => ({ ...uow, ...data }))
-              .then(tap)
-              .then(() => serverless.cli.log(`Created global table: ${uow.tableName} with region: ${options.region}`));
-          })
           .then((uow) => {
             const { ReplicationGroup } = uow.GlobalTableDescription;
             if (ReplicationGroup.filter(region => region.RegionName === options.region).length === 0) {
@@ -52,12 +38,35 @@ const deploy = (serverless, options) => {
               })
                 .then(data => ({ ...uow, ...data }))
                 .then(tap)
-                .then(() => serverless.cli.log(`Updated global table: ${uow.tableName} with region: ${options.region}`));
-            } else {
+                .then((uow) => {
+                  serverless.cli.log(`Updated global table: ${uow.tableName} with region: ${options.region}`);
+                  return uow;
+                });
+              } else {
               return Promise.resolve(uow)
                 .then(tap)
-                .then(() => serverless.cli.log(`Region: ${options.region} already in global table: ${uow.tableName}`));
+                .then((uow) => {
+                  serverless.cli.log(`Region: ${options.region} already in global table: ${uow.tableName}`);
+                  return uow;
+                });
             }
+          })
+          .catch((e) => {
+            serverless.cli.log(e.message);
+            return serverless.getProvider('aws').request('DynamoDB', 'createGlobalTable', {
+              GlobalTableName: uow.tableName,
+              ReplicationGroup: [
+                {
+                  RegionName: options.region
+                }
+              ]
+            })
+              .then(data => ({ ...uow, ...data }))
+              .then(tap)
+              .then((uow) => {
+                serverless.cli.log(`Created global table: ${uow.tableName} with region: ${options.region}`);
+                return uow;
+              });
           })
       )
   );
